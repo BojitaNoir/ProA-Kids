@@ -1,0 +1,49 @@
+[INSTRUCCIÓN PARA EL DESARROLLADOR MÓVIL]
+
+"Ocupo que consumas este endpoint para llenar la sección de Biblioteca. Aquí están los datos técnicos exactos:"
+
+1. 🎯 ENDPOINT: 
+   GET http://10.10.16.97:8000/api/documentos
+
+2. 📥 RESPUESTA JSON QUE VAS A RECIBIR:
+   {
+       "guias": [
+           {
+               "id": 10,
+               "nombre": "Guía de Sepsis Neonatal",
+               "fecha": "2024-02-15",
+               "download_url": "http://10.10.16.97:8000/documentos/10/download",
+               "preview_url": "http://10.10.16.97:8000/documentos/10/view",
+               "uploader": "Dr. Admin"
+           }
+       ],
+       "diagnosticos": [ ...similar... ]
+   }
+
+3. ⚡ LÓGICA DE IMPLEMENTACIÓN:
+   - Crea una lista/RecyclerView.
+   - Parsea el array "guias" y "diagnosticos".
+   - Muestra el 'nombre' y 'fecha' en cada item.
+   - PREVISUALIZACIÓN (Opcional pero recomendado):
+     Usa la 'preview_url' para abrir el PDF dentro de un WebView en la app. Al ser un PDF servido con disposición 'inline', la mayoría de los visualizadores lo mostrarán sin descargarlo a la carpeta de descargas del sistema.
+   - DESCARGA (Botón dedicado): 
+     Usa la 'download_url' para forzar la descarga del archivo al almacenamiento del dispositivo.
+
+4. 📤 NUEVO: SUBIDA DE DOCUMENTOS (POST):
+   ENDPOINT: POST http://[TU_IP]:8000/api/documentos
+   AUTENTICACIÓN: Requiere Bearer Token (Sanctum).
+   BODY (Multipart/form-data):
+   - 'nombre': String (Ej: "Guía de Intubación")
+   - 'categoria_id': String (Ej: "Guias", "guias", "Guía", "Diagnóstico") -> El servidor ya es robusto y mapeará esto a 'guia' o 'diagnostico' automáticamente.
+   - 'visibilidad': String ('public' o 'private')
+   - 'archivo': File (PDF únicamente, max 10MB)
+
+   RESPUESTA (201 Created):
+   { "message": "Documento subido con éxito", "documento": { ... } }
+
+   NOTAS DE SOLUCIÓN DE ERRORES:
+   - Ya NO te dará error 302 (Redirección), el servidor ahora fuerza respuestas JSON.
+   - Si recibes un 422, revisa los campos en el JSON de respuesta para ver qué validación falló.
+   - Asegúrate de enviar el Token de autenticación en el Header.
+
+"Ahí está el pan, cómetelo." 🍞

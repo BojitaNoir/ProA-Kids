@@ -1,0 +1,19 @@
+=============================================
+CONEXIÓN MÓVIL - PROA MEDICAL PLATFORM
+=============================================
+
+1. COMANDO DE INICIO (EJECUTAR EN TERMINAL):
+   php artisan serve --host=0.0.0.0 --port=8000
+
+2. TU DIRECCIÓN IP LOCAL:
+   10.10.16.97
+
+3. CONFIGURACIÓN EN LA APP MÓVIL:
+   Base URL: http://10.10.16.97:8000/api
+
+---------------------------------------------
+SOLUCION DE PROBLEMAS:
+- Si la app no conecta, desactiva temporalmente el Firewall de Windows
+  o crea una regla de entrada para el puerto 8000.
+- Asegúrate que el móvil y la PC estén en la misma red Wi-Fi (haena.local).
+=============================================
