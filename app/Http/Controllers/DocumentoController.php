@@ -131,22 +131,13 @@ class DocumentoController extends Controller
 
         $request->validate([
             'nombre' => 'required|string|max:255',
-            'categoria_id' => 'required', // Puede ser ID numérico o Nombre (ej: "Guía Clínica")
-            'visibilidad' => 'required|in:public,private',
-            'archivo' => 'required|file|mimes:pdf|max:10240', // 10MB limit
+            'subcategory_id' => 'required|exists:subcategorias,id',
+            'visibilidad' => 'required|in:admin_public,private,group',
+            'group_id' => 'nullable|integer',
+            'archivo' => 'required|file|mimes:pdf|max:15360', // 15MB limit
         ]);
 
-        // 1. Resolver Categoría Dinámica
-        $categoriaSearch = $request->categoria_id;
-        $categoria = \App\Models\Categoria::where('id', $categoriaSearch)
-            ->orWhere('nombre', $categoriaSearch)
-            ->first();
-
-        if (!$categoria) {
-            return response()->json([
-                'message' => 'La categoría proporcionada no existe en el sistema.'
-            ], 422);
-        }
+        $subcategoria = \App\Models\Subcategoria::with('categoria')->find($request->subcategory_id);
 
         if ($request->hasFile('archivo')) {
             $path = $request->file('archivo')->store('documentos', 'public');
@@ -154,9 +145,11 @@ class DocumentoController extends Controller
             // 1. Create Document Header
             $documento = Documento::create([
                 'nombre' => $request->nombre,
-                'categoria_id' => $categoria->id,
+                'categoria_id' => $subcategoria->category_id,
+                'subcategory_id' => $subcategoria->id,
                 'visibilidad' => $request->visibilidad,
                 'uploaded_by' => auth()->id() ?? 1,
+                'group_id' => $request->group_id,
             ]);
 
             // 2. Create Initial Version
@@ -183,8 +176,11 @@ class DocumentoController extends Controller
                 'documento' => [
                     'id' => $documento->id,
                     'nombre' => $documento->nombre,
+                    'subcategory_id' => $documento->subcategory_id,
                     'version' => 1,
-                    'categoria' => $categoria->nombre,
+                    'categoria' => $subcategoria->categoria->nombre,
+                    'uploaded_by_id' => auth()->id() ?? 1,
+                    'uploaded_by_name' => $userName,
                     'visibilidad' => $documento->visibilidad,
                     'preview_url' => route('documentos.view', $documento->id),
                     'download_url' => route('documentos.download', $documento->id),

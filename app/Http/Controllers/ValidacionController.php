@@ -168,8 +168,12 @@ class ValidacionController extends Controller
 
         // Registrar en la bitácora
         try {
+            $userId = auth()->id();
+            $userName = auth()->check() ? auth()->user()->name : 'Sistema';
+
             \App\Models\RegistroValidacion::create([
-                'user_id' => auth()->id() ?? 1, // Fallback a admin si se llama desde sistema
+                'user_id' => $userId ?? 1, // Fallback a admin si se llama desde sistema
+                'uploaded_by' => $userName, // Added uploaded_by
                 'patologia' => $patologia->nombre,
                 'medicamento' => $medicamento->nombre,
                 'clcr' => $clcr,
@@ -235,29 +239,102 @@ class ValidacionController extends Controller
         return response()->json($medicamentos);
     }
 
+    public function obtenerEstructura(): JsonResponse
+    {
+        $modulos = \App\Models\Modulo::with(['categorias.subcategorias'])->get();
+
+        $resultado = $modulos->map(function ($mod) {
+            return [
+                'id' => $mod->id,
+                'nombre' => $mod->nombre,
+                'icono' => $mod->icono,
+                // Proveemos ambos nombres de llaves para máxima compatibilidad con la App
+                'categories' => $mod->categorias->map(function ($cat) {
+                    return [
+                        'id' => $cat->id,
+                        'nombre' => $cat->nombre,
+                        'subcategories' => $cat->subcategorias->map(function ($sub) {
+                            return [
+                                'id' => $sub->id,
+                                'nombre' => $sub->nombre
+                            ];
+                        }),
+                        'subcategorias' => $cat->subcategorias->map(function ($sub) {
+                            return [
+                                'id' => $sub->id,
+                                'nombre' => $sub->nombre
+                            ];
+                        })
+                    ];
+                }),
+                'categorias' => $mod->categorias->map(function ($cat) {
+                    return [
+                        'id' => $cat->id,
+                        'nombre' => $cat->nombre,
+                        'subcategorias' => $cat->subcategorias->map(function ($sub) {
+                            return [
+                                'id' => $sub->id,
+                                'nombre' => $sub->nombre
+                            ];
+                        })
+                    ];
+                })
+            ];
+        });
+
+        // Retornamos el array directamente para que ApiService.fetchEstructura lo reciba sin envoltorio
+        return response()->json($resultado);
+    }
+
     /**
-     * Obtiene la lista de documentos agrupados por categorías dinámicas para la app móvil.
+     * Obtiene la lista de documentos con la nueva estructura y metadatos.
      */
     public function obtenerDocumentos(): JsonResponse
     {
         $userId = auth()->id();
 
-        // 1. Obtener todas las categorías con sus documentos filtrados por visibilidad
-        $categorias = \App\Models\Categoria::with([
+        $documentos = \App\Models\Documento::with(['uploader', 'subcategoria.categoria.modulo'])
+            ->where(function ($query) use ($userId) {
+                $query->where('visibilidad', 'admin_public')
+                    ->orWhere('visibilidad', 'public') // Legacy
+                    ->orWhere(function ($q) use ($userId) {
+                        $q->where('visibilidad', 'private')
+                            ->where('uploaded_by', $userId);
+                    })
+                    ->orWhere('visibilidad', 'group');
+            })
+            ->latest()
+            ->get();
+
+        $resultado = $documentos->map(function ($doc) {
+            return [
+                'id' => $doc->id,
+                'nombre' => $doc->nombre,
+                'subcategory_id' => $doc->subcategory_id,
+                'uploaded_by_id' => $doc->uploaded_by,
+                'uploaded_by_name' => $doc->uploader ? $doc->uploader->name : 'Sistema',
+                'version' => $doc->currentVersion->version_number ?? 1,
+                'fecha' => $doc->created_at->format('Y-m-d'),
+                'download_url' => route('documentos.download', $doc->id),
+                'preview_url' => route('documentos.view', $doc->id),
+                'visibilidad' => $doc->visibilidad === 'public' ? 'admin_public' : $doc->visibilidad
+            ];
+        });
+
+        // 2. Formatear la respuesta agrupada (categorias_dinamicas) para la UI de la App
+        $categoriasDinamicas = \App\Models\Categoria::with([
             'documentos' => function ($query) use ($userId) {
                 $query->where(function ($q) use ($userId) {
-                    $q->where('visibilidad', 'public')
+                    $q->where('visibilidad', 'admin_public')
+                        ->orWhere('visibilidad', 'public')
                         ->orWhere(function ($sq) use ($userId) {
                             $sq->where('visibilidad', 'private')
                                 ->where('uploaded_by', $userId);
-                        });
+                        })
+                        ->orWhere('visibilidad', 'group');
                 })->latest();
-            },
-            'documentos.uploader'
-        ])->get();
-
-        // 2. Formatear la respuesta para que sea dinámica
-        $resultado = $categorias->map(function ($cat) {
+            }
+        ])->get()->map(function ($cat) {
             return [
                 'categoria_id' => $cat->id,
                 'categoria_nombre' => $cat->nombre,
@@ -270,19 +347,28 @@ class ValidacionController extends Controller
                         'fecha' => $doc->created_at->format('Y-m-d'),
                         'download_url' => route('documentos.download', $doc->id),
                         'preview_url' => route('documentos.view', $doc->id),
-                        'uploader' => $doc->uploader ? $doc->uploader->name : 'Sistema',
+                        'uploaded_by_id' => $doc->uploaded_by,
+                        'uploaded_by_name' => $doc->uploader ? $doc->uploader->name : 'Sistema',
                         'visibilidad' => $doc->visibilidad
                     ];
                 })
             ];
         });
 
-        // Mapeo de compatibilidad para versiones anteriores de la app (Legacy Keys)
-        $guias = $resultado->filter(fn($c) => str_contains(strtolower($c['categoria_nombre']), 'guia'))->pluck('documentos')->flatten(1);
-        $diagnosticos = $resultado->filter(fn($c) => str_contains(strtolower($c['categoria_nombre']), 'diag'))->pluck('documentos')->flatten(1);
+        // 3. Agrupación por filtros de legado (guias, diagnosticos)
+        $guias = $resultado->filter(function ($doc) use ($documentos) {
+            $cat = $documentos->find($doc['id'])->categoria;
+            return $cat && str_contains(strtolower($cat->nombre), 'guia');
+        })->values();
+
+        $diagnosticos = $resultado->filter(function ($doc) use ($documentos) {
+            $cat = $documentos->find($doc['id'])->categoria;
+            return $cat && str_contains(strtolower($cat->nombre), 'diag');
+        })->values();
 
         return response()->json([
-            'categorias_dinamicas' => $resultado,
+            'categorias_dinamicas' => $categoriasDinamicas,
+            'documentos_totales' => $resultado,
             'guias' => $guias,
             'diagnosticos' => $diagnosticos,
             'guias_clinicas_mejores_practicas' => $guias,

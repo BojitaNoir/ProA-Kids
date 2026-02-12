@@ -19,6 +19,7 @@ Route::post('/validar', [ValidacionController::class, 'validar']);
 // Rutas auxiliares para obtener catálogos
 Route::get('/patologias', [ValidacionController::class, 'obtenerPatologias']);
 Route::get('/medicamentos', [ValidacionController::class, 'obtenerMedicamentos']);
+Route::get('/estructura', [ValidacionController::class, 'obtenerEstructura'])->middleware('auth:sanctum');
 
 // Nueva ruta para el repositorio documental (móvil) - Protegida
 Route::get('/documentos', [ValidacionController::class, 'obtenerDocumentos'])->middleware('auth:sanctum');

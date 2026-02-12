@@ -16,4 +16,7 @@ SOLUCION DE PROBLEMAS:
 - Si la app no conecta, desactiva temporalmente el Firewall de Windows
   o crea una regla de entrada para el puerto 8000.
 - Asegúrate que el móvil y la PC estén en la misma red Wi-Fi (haena.local).
+- DEBUG MÓVIL (Flutter/Dart): 
+  Agrega esto para ver el JSON real en consola si falla el parseo:
+  print("Estructura JSON: ${response.body}");
 =============================================

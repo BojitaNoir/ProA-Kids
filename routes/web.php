@@ -98,6 +98,8 @@ Route::middleware('auth')->group(function () {
                 return [
                     'id' => str_pad($log->id, 4, '0', STR_PAD_LEFT),
                     'user' => $log->user->name,
+                    'uploaded_by_id' => $log->user_id,
+                    'uploaded_by_name' => $log->user->name,
                     'medicamento' => $log->medicamento,
                     'patologia' => $log->patologia,
                     'resultado' => $log->resultado,
@@ -107,4 +109,3 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('api.stats');
 });
-

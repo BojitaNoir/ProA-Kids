@@ -16,10 +16,20 @@ class Documento extends Model
         'nombre',
         'archivo_path', // Kept for legacy compatibility, stores the path of the first/current version
         'categoria_id',
+        'subcategory_id',
         'current_version_id',
         'visibilidad',
         'uploaded_by',
+        'group_id',
     ];
+
+    /**
+     * Get the subcategory of the document.
+     */
+    public function subcategoria(): BelongsTo
+    {
+        return $this->belongsTo(Subcategoria::class, 'subcategory_id');
+    }
 
     /**
      * Get the category of the document.
